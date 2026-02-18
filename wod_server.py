@@ -384,7 +384,7 @@ class Environment:
                 if owned:
                     closest_city = min(
                         owned,
-                        key=lambda x: xy_to_dir_dis(((old_pos[0] - x[0]), (old_pos[1] - x[1]))),
+                        key=lambda x: xy_to_dir_dis(((old_pos[0] - x[0]), (old_pos[1] - x[1])))[1],
                     )
                     city_dir, city_dist = xy_to_dir_dis(
                         ((old_pos[0] - closest_city[0]), (old_pos[1] - closest_city[1]))
