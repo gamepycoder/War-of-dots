@@ -44,7 +44,7 @@ class MarchingSquares:
     def set_grid(self, new_grid):
         self.grid = new_grid
 
-    def get_grid_value(self, x, y):
+    def get_grid_value(self, x: float, y: float) -> float:
         x1, y1 = int(x), int(y)
         x2, y2 = min(x1 + 1, ROWS), min(y1 + 1, COLS)
 
