@@ -8,6 +8,23 @@ from tests.marching_squares_test import DeterministicEnvironment
 from wod_server import dir_dis_to_xy, xy_to_dir_dis
 
 
+def manhattan_distance(position: tuple[float, float]) -> float:
+    """Taxicab distance between a NYC street address and the (0, 0) origin.
+    It avoids expensive sqrt() calls."""
+    x, y = position
+    return abs(x) + abs(y)
+
+
+def xy_is_within(thresh_distance, xy) -> tuple[bool, float, float]:
+    """In the common case, returns 'not within threshold' with no sqrt() calls."""
+
+    # if manhattan_distance(xy) >= thresh_distance:
+    if abs(xy[0]) + abs(xy[1]) >= thresh_distance:
+        return False, 0.0, float("inf")
+    direc, dist = xy_to_dir_dis(xy)
+    return dist < thresh_distance, direc, dist
+
+
 class DeterministicEnvironment2(DeterministicEnvironment):
     def update_troops(self, paths_to_apply):  # split into more functions ?
         self.players_in_cities = [[] for _ in self.cities]
@@ -109,8 +126,8 @@ class DeterministicEnvironment2(DeterministicEnvironment):
                             new_pos[0] - other_x,
                             new_pos[1] - other_y,
                         )
-                        dir, distance = xy_to_dir_dis((old_off_x, old_off_y))
-                        if distance < 14:
+                        is_within, dir, distance = xy_is_within(14, (old_off_x, old_off_y))
+                        if is_within:
                             distance = 14
                             new_off_x, new_off_y = dir_dis_to_xy(dir, distance)
                             change_x, change_y = (
@@ -136,11 +153,12 @@ class DeterministicEnvironment2(DeterministicEnvironment):
                                     new_pos[0] - other_x,
                                     new_pos[1] - other_y,
                                 )
-                                dir, distance = xy_to_dir_dis((off_x, off_y))
-                                if distance < 28:
-                                    hit_enemy = True
-                                if distance < 32:
-                                    enemies_in_range.append((other_t, distance))
+                                is_within, dir, distance = xy_is_within(32, (off_x, off_y))
+                                if is_within:
+                                    if distance < 28:
+                                        hit_enemy = True
+                                    if distance < 32:
+                                        enemies_in_range.append((other_t, distance))
 
                     out_of_world = (
                         (new_pos[0] > WORLD_X)
@@ -152,10 +170,11 @@ class DeterministicEnvironment2(DeterministicEnvironment):
                         troop.position = new_pos
                         on_terrain = new_terrain
 
-                    dir, distance = xy_to_dir_dis(
-                        (target[0] - troop.position[0], target[1] - troop.position[1])
+                    is_within, dir, distance = xy_is_within(
+                        terrain_speed * 2,
+                        (target[0] - troop.position[0], target[1] - troop.position[1]),
                     )
-                    if distance < (terrain_speed * 2):
+                    if is_within and distance < terrain_speed * 2:
                         troop.path.pop(0)
                 else:
                     new_pos = old_pos
@@ -168,8 +187,8 @@ class DeterministicEnvironment2(DeterministicEnvironment):
                             new_pos[0] - other_x,
                             new_pos[1] - other_y,
                         )
-                        dir, distance = xy_to_dir_dis((old_off_x, old_off_y))
-                        if distance < 15:
+                        is_within, dir, distance = xy_is_within(15, (old_off_x, old_off_y))
+                        if is_within:
                             distance += 0.025
                             new_off_x, new_off_y = dir_dis_to_xy(dir, distance)
                             change_x, change_y = (
@@ -195,11 +214,12 @@ class DeterministicEnvironment2(DeterministicEnvironment):
                                     new_pos[0] - other_x,
                                     new_pos[1] - other_y,
                                 )
-                                dir, distance = xy_to_dir_dis((off_x, off_y))
-                                if distance < 28:
-                                    hit_enemy = True
-                                if distance < 32:
-                                    enemies_in_range.append((other_t, distance))
+                                is_within, dir, distance = xy_is_within(32, (off_x, off_y))
+                                if is_within:
+                                    if distance < 28:
+                                        hit_enemy = True
+                                    if distance < 32:
+                                        enemies_in_range.append((other_t, distance))
 
                     out_of_world = (
                         (new_pos[0] > WORLD_X)
@@ -224,8 +244,8 @@ class DeterministicEnvironment2(DeterministicEnvironment):
                 for i, city in enumerate(self.cities):
                     cx, cy = city.position
                     tx, ty = troop.position
-                    dir, dist = xy_to_dir_dis((tx - cx, ty - cy))
-                    if dist < 15:
+                    is_within, dir, dist = xy_is_within(15, (tx - cx, ty - cy))
+                    if is_within:
                         self.players_in_cities[i].append(player)
                         break
             to_remove.reverse()

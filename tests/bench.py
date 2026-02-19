@@ -32,7 +32,7 @@ def add_troops(env: Environment, num_troops: int = 40) -> Environment:
         assert 4 == len(env.draw_info(player=i))
         player = env.players[i]
         for _ in range(num_troops):
-            player.troops.append(Troop((x + 2 * i, y + i), player))
+            player.troops.append(Troop((x + 4 * i, y + i), player))
 
     return env
 
