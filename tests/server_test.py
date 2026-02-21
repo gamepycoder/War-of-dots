@@ -1,3 +1,5 @@
+# Copyright 2026 John Hanley. MIT licensed.
+
 import unittest
 
 from wod_server import xy_to_dir_dis

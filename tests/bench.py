@@ -1,5 +1,7 @@
 #! /usr/bin/env python
 
+# Copyright 2026 John Hanley. MIT licensed.
+
 from time import time
 
 from constants import PLAYERS

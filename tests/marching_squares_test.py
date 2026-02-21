@@ -1,3 +1,5 @@
+# Copyright 2026 John Hanley. MIT licensed.
+
 import unittest
 
 import numpy as np
