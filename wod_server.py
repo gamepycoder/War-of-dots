@@ -349,7 +349,7 @@ class Environment:
             [c.position for c in self.cities],
         )
 
-    def get_terrain_name(self, value, fvalue):
+    def get_terrain_name(self, value: float, fvalue: float) -> str:
         if fvalue > THRESHOLD:
             return "forest"
         for name, v in reversed(TERRAIN_VALUES.items()):
