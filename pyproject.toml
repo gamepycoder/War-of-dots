@@ -8,8 +8,10 @@ dependencies = [
     "numpy>=2.4.2",
     "perlin-noise>=1.14",
     "pygame>=2.0.1",
+    "python-levenshtein>=0.27.3",
     "ruff>=0.15.1",
     "sqlalchemy>=2.0.46",
+    "sqlalchemy-mate<2.0.0.1",
     "typer>=0.23.0",
     "uszipcode>=1.0.1",
 ]
