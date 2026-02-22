@@ -4,12 +4,14 @@ all:
 	@egrep '^[a-z-]*:' Makefile | awk '{print $$1}' | tr -d :
 
 ACTIVATE := source .venv/bin/activate
-PYTHONPATH := .
+export PYTHONPATH := .
+export SPATIALITE_LIBRARY_PATH := /opt/homebrew/lib/mod_spatialite
 
 .venv:
 	uv sync
 
 test: .venv
+	env | sort | grep SPAT
 	$(ACTIVATE) && python -m unittest tests/*_test.py
 
 lint: .venv
