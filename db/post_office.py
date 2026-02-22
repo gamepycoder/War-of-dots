@@ -14,7 +14,7 @@ from uszipcode import ZipcodeTypeEnum as ZipType
 _engine = None
 
 
-def get_engine(want_echo: bool = False, add_gis_tables: bool = False) -> Engine:
+def get_engine(want_echo: bool = False) -> Engine:
     """Connects to a spatial sqlite RDBMS in /tmp.
 
     Install spatial support on MacOS using:
@@ -30,13 +30,6 @@ def get_engine(want_echo: bool = False, add_gis_tables: bool = False) -> Engine:
             raw.load_extension(os.environ["SPATIALITE_LIBRARY_PATH"])
             # conn.execute(text("PRAGMA load_extension('mod_spatialite')"))
             raw.close()
-            if add_gis_tables:
-                select = """
-                SELECT name FROM sqlite_master
-                WHERE type='table' AND name='spatial_ref_sys'
-                """
-                if not conn.execute(text(select)).fetchone():
-                    conn.execute(text("SELECT InitSpatialMetaData()"))
 
     return _engine
 
