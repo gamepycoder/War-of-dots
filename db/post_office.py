@@ -75,7 +75,7 @@ class PostOffice(Base):
     lng = Column(Float, nullable=False)
     pop = Column(Integer, nullable=False)
     geom = Column(Geometry("POINT", WGS84))
-    old_geom = Column(VARCHAR)
+    # old_geom = Column(VARCHAR)
 
 
 def inspect_po_column_types(sess: Session) -> None:
@@ -97,11 +97,13 @@ def populate_table() -> None:
     with get_session() as sess:
         sess.query(PostOffice).delete()
         inspect_po_column_types(sess)
-        execute("DROP INDEX  IF EXISTS  idx_post_office_geom")
-        execute("ALTER TABLE post_office  DROP COLUMN old_geom")
-        execute("ALTER TABLE post_office  RENAME COLUMN geom TO old_geom")
-        execute("SELECT AddGeometryColumn('post_office', 'geom', 4326, 'POINT', 'XY')")
-        execute("SELECT CreateSpatialIndex('post_office', 'geom')")
+        # execute("DROP INDEX  IF EXISTS  idx_post_office_geom")
+        # execute("ALTER TABLE post_office  DROP COLUMN old_geom")
+        # execute("ALTER TABLE post_office  RENAME COLUMN geom TO old_geom")
+        # execute("SELECT DiscardGeometryColumn('post_office', 'geom')")
+        # execute("SELECT AddGeometryColumn('post_office', 'geom', 4326, 'POINT', 'XY')")
+        execute("SELECT RecoverGeometryColumn('post_office', 'geom', 4326, 'POINT', 'XY')")
+        # execute("SELECT CreateSpatialIndex('post_office', 'geom')")
 
         for city_st in [
             ("Albany", "NY"),
