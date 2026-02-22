@@ -7,7 +7,17 @@ from pathlib import Path
 
 import uszipcode as uszip
 from geoalchemy2 import Geometry, WKTElement
-from sqlalchemy import Column, Engine, Float, Integer, MetaData, String, create_engine, text
+from sqlalchemy import (
+    VARCHAR,
+    Column,
+    Engine,
+    Float,
+    Integer,
+    MetaData,
+    String,
+    create_engine,
+    text,
+)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session, sessionmaker
 from uszipcode import ZipcodeTypeEnum as ZipType
@@ -51,6 +61,8 @@ def get_session() -> Generator[Session]:
             sess.commit()
 
 
+WGS84 = 4326  # EPSG spatial reference system
+
 Base = declarative_base()
 
 
@@ -62,20 +74,29 @@ class PostOffice(Base):
     lat = Column(Float, nullable=False)
     lng = Column(Float, nullable=False)
     pop = Column(Integer, nullable=False)
-    geom = Column(Geometry("POINT"), nullable=False)
+    geom = Column(Geometry("POINT", WGS84))
 
 
-WGS84 = 4326  # EPSG spatial reference system
+def inspect_po_column_types(sess: Session) -> None:
+    meta = MetaData()
+    meta.reflect(bind=get_engine())
+    post_office_table = meta.tables["post_office"]
+    print()
+    for column in post_office_table.columns:
+        print(column.name.ljust(6), column.type)
 
 
-def populate_table(want_spatial_index: bool = False) -> None:
+def populate_table() -> None:
     MetaData().create_all(get_engine(), tables=[PostOffice.__table__])
 
     search = uszip.SearchEngine()
     with get_session() as sess:
         sess.query(PostOffice).delete()
-        if want_spatial_index:
-            sess.execute(text("CREATE SPATIAL INDEX idx_geom ON post_office(geom)"))
+        inspect_po_column_types(sess)
+        sess.execute(text("DROP INDEX  IF EXISTS  idx_post_office_geom"))
+        # sess.execute(text("ALTER TABLE post_office  RENAME COLUMN geom TO old_geom"))
+        # sess.execute(text("SELECT AddGeometryColumn('post_office', 'geom', 4326, 'POINT', 'XY')"))
+        # sess.execute(text("SELECT CreateSpatialIndex('post_office', 'geom')"))
 
         for city_st in [
             ("Albany", "NY"),

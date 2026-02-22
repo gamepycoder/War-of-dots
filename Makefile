@@ -11,7 +11,6 @@ export SPATIALITE_LIBRARY_PATH := /opt/homebrew/lib/mod_spatialite
 	uv sync
 
 test: .venv
-	env | sort | grep SPAT
 	$(ACTIVATE) && python -m unittest tests/*_test.py
 
 lint: .venv
