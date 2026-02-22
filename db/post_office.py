@@ -1,5 +1,6 @@
 # Copyright 2026 John Hanley. MIT licensed.
 
+import os
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
@@ -14,7 +15,7 @@ from uszipcode import ZipcodeTypeEnum as ZipType
 _engine = None
 
 
-def get_engine(want_echo: bool = False) -> Engine:
+def get_engine(want_echo: bool = False, add_gis_tables: bool = False) -> Engine:
     """Connects to a spatial sqlite RDBMS in /tmp.
 
     Install spatial support on MacOS using:
@@ -25,23 +26,18 @@ def get_engine(want_echo: bool = False) -> Engine:
         DB_URL = f"sqlite:///{DB_FILE}"
         _engine = create_engine(DB_URL, echo=want_echo, plugins=["geoalchemy2"])
         with _engine.connect() as conn:
-
-            select = """
+            raw = _engine.raw_connection()
+            raw.enable_load_extension(True)
+            raw.load_extension(os.environ["SPATIALITE_LIBRARY_PATH"])
+            raw.close()
+            # conn.execute(text("PRAGMA load_extension('mod_spatialite')"))
+            if add_gis_tables:
+                select = """
                 SELECT name FROM sqlite_master
                 WHERE type='table' AND name='spatial_ref_sys'
                 """
-            raw = _engine.raw_connection()
-            raw.enable_load_extension(True)
-            raw.execute("PRAGMA load_extension('mod_spatialite')")
-            raw.load_extension("/opt/homebrew/lib/mod_spatialite")
-            if not conn.execute(text(select)).fetchone():
-                cursor = raw.cursor()
-                cursor.execute("SELECT InitSpatialMetaData()")
-            raw.commit()
-            raw.close()
-
-        with _engine.connect() as conn:
-            conn.execute(text("PRAGMA load_extension('mod_spatialite');"))
+                if not conn.execute(text(select)).fetchone():
+                    conn.execute(text("SELECT InitSpatialMetaData()"))
 
     return _engine
 
@@ -49,9 +45,6 @@ def get_engine(want_echo: bool = False) -> Engine:
 @contextmanager
 def get_session() -> Generator[Session]:
     with sessionmaker(bind=get_engine())() as sess:
-
-        sess.query(text("PRAGMA load_extension('mod_spatial');"))
-
         try:
             yield sess
         finally:
@@ -75,13 +68,14 @@ class PostOffice(Base):
 WGS84 = 4326  # EPSG spatial reference system
 
 
-def populate_table() -> None:
+def populate_table(want_spatial_index: bool = False) -> None:
     MetaData().create_all(get_engine(), tables=[PostOffice.__table__])
 
     search = uszip.SearchEngine()
     with get_session() as sess:
         sess.query(PostOffice).delete()
-        sess.query(text("PRAGMA load_extension('mod_spatial');"))
+        if want_spatial_index:
+            sess.execute(text("CREATE SPATIAL INDEX idx_geom ON post_office(geom)"))
 
         for city_st in [
             ("Albany", "NY"),
@@ -99,10 +93,6 @@ def populate_table() -> None:
                 sess.add(po)
         sess.commit()
         # last row is ZIP 02113, at (42.37 -71.06)
-
-    def create_spatial_index() -> None:
-        with get_engine().connect() as conn:
-            conn.execute(text("CREATE SPATIAL INDEX idx_geom ON post_office(geom);"))
 
 
 def get_nearby_post_offices(lat: float, lng: float, k: int = 3) -> list[tuple[float, float]]:
