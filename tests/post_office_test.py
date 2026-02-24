@@ -12,3 +12,7 @@ class PostOfficeTest(unittest.TestCase):
             [(42.37, -71.06), (42.36, -71.06), (42.37, -71.05)],
             get_nearby_post_offices(42.371, -71.061),
         )
+        self.assertEqual(
+            [(42.69, -73.73), (42.67, -73.78)],
+            get_nearby_post_offices(42.691, -73.731, limit=2),
+        )

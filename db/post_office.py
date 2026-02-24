@@ -3,7 +3,9 @@
 import os
 from collections.abc import Generator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import uszipcode as uszip
 from sqlalchemy import BLOB, Column, Engine, Float, Integer, MetaData, String, create_engine, text
@@ -24,12 +26,11 @@ def get_engine(want_echo: bool = False) -> Engine:
         DB_FILE = Path("/tmp/dots.db")
         DB_URL = f"sqlite:///{DB_FILE}"
         _engine = create_engine(DB_URL, echo=want_echo, plugins=["geoalchemy2"])
-        with _engine.connect() as conn:
-            raw = _engine.raw_connection()
-            raw.enable_load_extension(True)
-            raw.load_extension(os.environ["SPATIALITE_LIBRARY_PATH"])
-            # conn.execute(text("PRAGMA load_extension('mod_spatialite')"))
-            raw.close()
+        raw = _engine.raw_connection()
+        raw.enable_load_extension(True)
+        raw.load_extension(os.environ["SPATIALITE_LIBRARY_PATH"])
+        # conn.execute(text("PRAGMA load_extension('mod_spatialite')"))
+        raw.close()
 
     return _engine
 
@@ -112,7 +113,21 @@ def populate_table() -> None:
         # last row is ZIP 02113, at (42.37 -71.06)
 
 
-def get_nearby_post_offices(lat: float, lng: float, k: int = 3) -> list[tuple[float, float]]:
+@dataclass
+class Location:
+    lat: float
+    lng: float
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, (Location, tuple)):
+            return False
+        if isinstance(other, tuple) and len(other) != 2:
+            return False
+        oth = other if isinstance(other, Location) else Location(*other)
+        return (self.lat, self.lng) == (oth.lat, oth.lng)
+
+
+def get_nearby_post_offices(lat: float, lng: float, limit: int = 3) -> list[Location]:
     with get_session() as sess:
         point = f"POINT({lng} {lat})"
         select = text("""
@@ -121,5 +136,5 @@ def get_nearby_post_offices(lat: float, lng: float, k: int = 3) -> list[tuple[fl
             ORDER BY ST_Distance(geom, ST_GeomFromText(:point)) ASC
             LIMIT :k;
         """)
-        q = sess.execute(select, {"point": point, "k": k})
-        return [(float(row.lat), float(row.lng)) for row in q]
+        q = sess.execute(select, {"point": point, "k": limit})
+        return [Location(float(row.lat), float(row.lng)) for row in q]
