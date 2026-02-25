@@ -49,7 +49,7 @@ WGS84 = 4326  # EPSG spatial reference system
 Base = declarative_base()
 
 
-class PostOffice(Base):
+class PostOffice(Base):  # type: ignore
     __tablename__ = "post_office"
 
     zip = Column(String(5), primary_key=True)
