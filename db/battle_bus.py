@@ -32,12 +32,11 @@ Eliminate all enemy troops to win.
 
 import math
 import os
-from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from random import seed, uniform
 
-from sqlalchemy import Column, Float, Integer, create_engine
+from sqlalchemy import Column, Float, Integer, create_engine, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -49,26 +48,17 @@ class BFPlayer(Enum):
     BLUE = 1
 
 
-@dataclass
-class BFTroop:
-    serial: int = 0  # "Name, rank, and serial number, please."
-    player: BFPlayer = BFPlayer.RED
-    x: float = 0.0
-    y: float = 0.0
-    health: int = 100
-
-
 Base = declarative_base()
 
 
 class BFTroopRow(Base):  # type: ignore
     __tablename__ = "bftroop"
 
-    serial = Column(Integer, primary_key=True)
-    player = Column(Integer)
+    serial = Column(Integer, primary_key=True)  # "Name, rank, and serial number, please."
+    player = Column(Integer)  # BFPlayer.{RED,BLUE}
     x = Column(Float)
     y = Column(Float)
-    health = Column(Integer)
+    health = Column(Integer)  # 100 is fully healthy
 
 
 class Battlefield:
@@ -119,33 +109,50 @@ class BattleBusPair:
         serial = 0
         x_red = 0.2
         x_blue = 0.8
-        self.troops: list[BFTroop] = []
+        self.troops: list[BFTroopRow] = []
         for _ in range(num_troops):
-            self.troops.append(BFTroop(serial, BFPlayer.BLUE, x_blue, 0.0))
+            self.troops.append(
+                BFTroopRow(serial=serial, player=BFPlayer.BLUE, x=x_blue, y=0.0),
+            )
             serial += 1
-            self.troops.append(BFTroop(serial, BFPlayer.RED, x_red, 0.0))
+            self.troops.append(
+                BFTroopRow(serial=serial, player=BFPlayer.RED, x=x_red, y=0.0),
+            )
             serial += 1
 
-    def _pop(self, player_color: BFPlayer) -> BFTroop:
+    def _pop(self, player_color: BFPlayer, y: float) -> BFTroopRow:
         troop = self.troops.pop()
-        assert troop.player == player_color
-        return troop
+        # assert troop.player == player_color
+        return BFTroopRow(
+            serial=troop.serial,
+            player=troop.player,
+            x=troop.x,
+            y=y,
+            health=troop.health,
+        )
 
-    def _insert(self, troop: BFTroop, session: Session) -> None:
+    def _insert(self, troop: BFTroopRow, session: Session) -> None:
         session.add(
             BFTroopRow(
                 serial=troop.serial,
-                player=troop.player.value,
-                x=round(troop.x, 6),
-                y=round(troop.y, 6),
+                player=troop.player,
+                x=func.round(troop.x, 6),
+                y=func.round(troop.y, 6),
                 health=troop.health,
             )
         )
 
-    def _pick_random_heading(self, troop: BFTroop, distance: float = 0.1) -> None:
+    def _pick_random_heading(self, troop: BFTroopRow, distance: float = 0.1) -> BFTroopRow:
         """This produces a swath of soldiers, of width 0.2."""
         direc = math.radians(uniform(0.0, 360.0))
-        troop.x, troop.y = dir_dis_to_xy(direc, distance)
+        x, y = dir_dis_to_xy(direc, distance)
+        return BFTroopRow(
+            serial=troop.serial,
+            player=troop.player.value,
+            x=x,
+            y=y,
+            health=troop.health,
+        )
 
     def distribute(self, bf: Battlefield) -> None:
         """
@@ -159,9 +166,8 @@ class BattleBusPair:
             while self.troops:
                 y += dy  # Fly north one increment.
                 for color in (BFPlayer.RED, BFPlayer.BLUE):
-                    troop = self._pop(color)
-                    troop.y = y
-                    self._pick_random_heading(troop)
+                    troop = self._pop(color, y=y)
+                    troop = self._pick_random_heading(troop)
                     self._insert(troop, sess)
 
             sess.commit()
