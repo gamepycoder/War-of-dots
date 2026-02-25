@@ -30,14 +30,18 @@ will change direction so it heads directly for the Center at (0.5, 0.5).
 Eliminate all enemy troops to win.
 """
 
+import math
 import os
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
+from random import seed, uniform
 
 from sqlalchemy import Column, Float, Integer, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session, sessionmaker
+
+from wod_server import dir_dis_to_xy
 
 
 class BFPlayer(Enum):
@@ -93,6 +97,15 @@ class Battlefield:
             sess.query(BFTroopRow).delete()
             sess.commit()
 
+    def frame(self) -> bool:
+        """Advance the simulation by one display frame.
+
+        All soldiers either move by the same tiny distance, or they shoot.
+        Returns True while both sides still have troops, False in the case of victory.
+        """
+
+        return True
+
 
 class BattleBusPair:
     """
@@ -129,10 +142,16 @@ class BattleBusPair:
             )
         )
 
+    def _pick_random_heading(self, troop: BFTroop, distance: float = 0.1) -> None:
+        """This produces a swath of soldiers, of width 0.2."""
+        direc = math.radians(uniform(0.0, 360.0))
+        troop.x, troop.y = dir_dis_to_xy(direc, distance)
+
     def distribute(self, bf: Battlefield) -> None:
         """
         Fly over the battlefield, dropping troops as we go.
         """
+        seed(42)
         y = 0.1  # This always reflects the current bus location.
         num_troops = len(self.troops) / 2
         dy = (0.9 - y) / num_troops
@@ -142,6 +161,7 @@ class BattleBusPair:
                 for color in (BFPlayer.RED, BFPlayer.BLUE):
                     troop = self._pop(color)
                     troop.y = y
+                    self._pick_random_heading(troop)
                     self._insert(troop, sess)
 
             sess.commit()
