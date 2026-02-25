@@ -10,7 +10,7 @@ from wod_server import Environment, Game, Troop
 
 
 class BenchmarkGame(Game):
-    def game_logic(self):
+    def game_logic(self) -> None:
         city_paths_to_apply = []
         for p_num in range(PLAYERS):
             if self.player_city_inputs[p_num]:
@@ -31,7 +31,7 @@ class BenchmarkGame(Game):
 def add_troops(env: Environment, num_troops: int = 40) -> Environment:
     for i, city in enumerate(env.cities):  # We assume 2 cities and 2 players.
         x, y = city.position
-        assert 4 == len(env.draw_info(player=i))
+        assert 4 == len(env.draw_info(player_num=i))
         player = env.players[i]
         for _ in range(num_troops):
             player.troops.append(Troop((x + 4 * i, y + i), player))

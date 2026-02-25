@@ -13,9 +13,12 @@ export SPATIALITE_LIBRARY_PATH := /opt/homebrew/lib/mod_spatialite
 test: .venv
 	$(ACTIVATE) && python -m unittest tests/*_test.py
 
+STRICT := --strict --warn-unreachable --ignore-missing-imports --no-namespace-packages
+
 lint: .venv
 	$(ACTIVATE) && black . && isort . && ruff check
 	$(ACTIVATE) && pyright
+	$(ACTIVATE) && mypy $(STRICT) [cs]*.py wod_server.py */*.py
 
 profile: .venv
 	$(ACTIVATE) && python -m cProfile tests/bench.py | head -30
