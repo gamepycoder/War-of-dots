@@ -98,7 +98,7 @@ class BattleBusPair:
     """
     A pair of buses produce the initial distribution of troops on the battlefield.
 
-    Red flies north in the west, while Blue flies south in the east.
+    Red flies north in the west, while Blue flies along the eastern border.
     Each produces a swath of soldiers that is 0.2 wide.
     """
 
@@ -124,7 +124,7 @@ class BattleBusPair:
                 serial=troop.serial,
                 player=troop.player.value,
                 x=round(troop.x, 6),
-                y=round(troop.y, 66),
+                y=round(troop.y, 6),
                 health=troop.health,
             )
         )
@@ -133,18 +133,15 @@ class BattleBusPair:
         """
         Fly over the battlefield, dropping troops as we go.
         """
-        y_base = 0.1  # This always reflects the Red bus current location.
-        num_troops = len(self.troops) // 2
-        dy = (0.9 - y_base) / num_troops
+        y = 0.1  # This always reflects the current bus location.
+        num_troops = len(self.troops) / 2
+        dy = (0.9 - y) / num_troops
         with bf.get_session() as sess:
             while self.troops:
-                y_base += dy  # Fly north one increment.
-                troop = self._pop(BFPlayer.RED)
-                troop.y = y_base
-                self._insert(troop, sess)
-
-                troop = self._pop(BFPlayer.BLUE)
-                troop.y = 1 - y_base  # The Blue bus is flying south.
-                self._insert(troop, sess)
+                y += dy  # Fly north one increment.
+                for color in (BFPlayer.RED, BFPlayer.BLUE):
+                    troop = self._pop(color)
+                    troop.y = y
+                    self._insert(troop, sess)
 
             sess.commit()
