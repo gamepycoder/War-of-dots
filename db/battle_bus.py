@@ -1,0 +1,137 @@
+# Copyright 2026 John Hanley. MIT licensed.
+
+"""
+This module's simplified battlefield lets us explore Troop scaling.
+
+Combat models want to know "what troops are near which other ones?"
+A typical implementation compares all-to-all distances,
+leading to N ** 2 quadratic scaling.
+Quadtrees offer better scaling, assuming that troops don't form giant clumps.
+
+Popular quadtree spatial indexes include:
+- PostGIS for postgres
+- Spatialite for sqlite
+
+A pair of battle buses fly over the battlefield,
+distributing Red and Blue troops in two vertical swaths.
+The battlefield is a unit square.
+Red flies north along the western border; Blue south along the eastern one.
+At the start of Phase 1, troops land within +/- 0.1 of the bus flight path.
+
+Red troops then proceed due east, and Blue troops due west.
+We either move, or shoot.
+If an enemy is within range, the troop stays put and fires on them.
+The Middle Zone extends over the x range 0.4 .. 0.6.
+
+Phase 2:
+Any troop that crosses x == 0.5 and then exits the Middle Zone
+will change direction so it heads directly for the Center at (0.5, 0.5).
+
+Eliminate all enemy troops to win.
+"""
+
+import os
+from dataclasses import dataclass
+from enum import Enum
+from pathlib import Path
+
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import Session, sessionmaker
+
+
+class BFPlayer(Enum):
+    RED = 0
+    BLUE = 1
+
+
+@dataclass
+class BFTroop:
+    serial: int = 0  # "Name, rank, and serial number, please."
+    player: BFPlayer = BFPlayer.RED
+    x: float = 0.0
+    y: float = 0.0
+    health: int = 100
+
+
+class Battlefield:
+    """Troops move upon a Battlefield, which is persisted in an RDBMS."""
+
+    def __init__(self, want_db_echo: bool = False) -> None:
+        db_file = Path("/tmp/battlefield.db")
+        db_url = f"sqlite:///{db_file}"
+        self.engine = create_engine(db_url, echo=want_db_echo, plugins=["geoalchemy2"])
+
+        raw = self.engine.raw_connection()
+        raw.enable_load_extension(True)
+        raw.load_extension(os.environ["SPATIALITE_LIBRARY_PATH"])
+        raw.close()
+
+        self._create_tables()
+
+    def get_session(self) -> Session:
+        return sessionmaker(bind=self.engine)()
+
+    def _create_tables(self) -> None:
+        with self.get_session() as sess:
+            sess.execute(text("""
+                CREATE TABLE  IF NOT EXISTS  bftroop (
+                    serial INTEGER PRIMARY KEY,
+                    player INTEGER,
+                    x REAL,
+                    y REAL,
+                    health INTEGER
+                )
+            """))
+            sess.execute(text("DELETE FROM bftroop"))
+            sess.commit()
+
+
+class BattleBusPair:
+    """
+    A pair of buses produce the initial distribution of troops on the battlefield.
+
+    Red flies north in the west, while Blue flies south in the east.
+    Each produces a swath of soldiers that is 0.2 wide.
+    """
+
+    def __init__(self, num_troops: int = 100) -> None:
+        serial = 0
+        x_red = 0.2
+        x_blue = 0.8
+        self.troops: list[BFTroop] = []
+        for _ in range(num_troops):
+            self.troops.append(BFTroop(serial, BFPlayer.BLUE, x_blue, 0.0))
+            self.troops.append(BFTroop(serial, BFPlayer.RED, x_red, 0.0))
+            serial += 1
+
+    def distribute(self, bf: Battlefield) -> None:
+        """
+        Fly over the battlefield, dropping troops as we go.
+        """
+        y_base = 0.1
+        num_troops = len(self.troops) // 2
+        dy = (0.9 - y_base) / num_troops
+        with bf.get_session() as sess:
+            for i in range(num_troops):
+                y_red = y_base + i * dy
+                # y_blue = 1 - y_red
+
+                troop = self.troops.pop()
+                assert troop.player == BFPlayer.RED
+                troop.y = y_red
+                ins = """
+                INSERT INTO bftroop (serial, player, x, y, health)
+                VALUES (:serial, :player, :x, :y, :health)
+                """
+                sess.execute(
+                    text(ins),
+                    {
+                        "serial": troop.serial,
+                        "player": troop.player.value,
+                        "x": troop.x,
+                        "y": troop.y,
+                        "health": troop.health,
+                    },
+                )
+                sess.commit()
+                print(troop)
