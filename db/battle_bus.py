@@ -51,7 +51,7 @@ class BFPlayer(Enum):
 Base = declarative_base()
 
 
-class BFTroopRow(Base):  # type: ignore
+class BFTroop(Base):  # type: ignore
     __tablename__ = "bftroop"
 
     serial = Column(Integer, primary_key=True)  # "Name, rank, and serial number, please."
@@ -84,7 +84,7 @@ class Battlefield:
         Base.metadata.create_all(self.engine)
 
         with self.get_session() as sess:
-            sess.query(BFTroopRow).delete()
+            sess.query(BFTroop).delete()
             sess.commit()
 
     def frame(self) -> bool:
@@ -109,21 +109,21 @@ class BattleBusPair:
         serial = 0
         x_red = 0.2
         x_blue = 0.8
-        self.troops: list[BFTroopRow] = []
+        self.troops: list[BFTroop] = []
         for _ in range(num_troops):
             self.troops.append(
-                BFTroopRow(serial=serial, player=BFPlayer.BLUE, x=x_blue, y=0.0),
+                BFTroop(serial=serial, player=BFPlayer.BLUE, x=x_blue, y=0.0),
             )
             serial += 1
             self.troops.append(
-                BFTroopRow(serial=serial, player=BFPlayer.RED, x=x_red, y=0.0),
+                BFTroop(serial=serial, player=BFPlayer.RED, x=x_red, y=0.0),
             )
             serial += 1
 
-    def _pop(self, player_color: BFPlayer, y: float) -> BFTroopRow:
+    def _pop(self, player_color: BFPlayer, y: float) -> BFTroop:
         troop = self.troops.pop()
         # assert troop.player == player_color
-        return BFTroopRow(
+        return BFTroop(
             serial=troop.serial,
             player=troop.player,
             x=troop.x,
@@ -131,9 +131,9 @@ class BattleBusPair:
             health=troop.health,
         )
 
-    def _insert(self, troop: BFTroopRow, session: Session) -> None:
+    def _insert(self, troop: BFTroop, session: Session) -> None:
         session.add(
-            BFTroopRow(
+            BFTroop(
                 serial=troop.serial,
                 player=troop.player,
                 x=func.round(troop.x, 6),
@@ -142,11 +142,11 @@ class BattleBusPair:
             )
         )
 
-    def _pick_random_heading(self, troop: BFTroopRow, distance: float = 0.1) -> BFTroopRow:
+    def _pick_random_heading(self, troop: BFTroop, distance: float = 0.1) -> BFTroop:
         """This produces a swath of soldiers, of width 0.2."""
         direc = math.radians(uniform(0.0, 360.0))
         x, y = dir_dis_to_xy(direc, distance)
-        return BFTroopRow(
+        return BFTroop(
             serial=troop.serial,
             player=troop.player.value,
             x=x,
