@@ -36,6 +36,7 @@ from enum import Enum
 from pathlib import Path
 from random import seed, uniform
 
+import matplotlib.pyplot as plt
 from sqlalchemy import Column, Float, Integer, create_engine, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session, sessionmaker
@@ -95,6 +96,40 @@ class Battlefield:
         """
 
         return True
+
+    def display(self) -> None:
+        with self.get_session() as sess:
+            red_troops = sess.query(BFTroop).filter_by(player=BFPlayer.RED.value).all()
+            blue_troops = sess.query(BFTroop).filter_by(player=BFPlayer.BLUE.value).all()
+
+            if red_troops:
+                red_x = [troop.x for troop in red_troops]
+                red_y = [troop.y for troop in red_troops]
+            else:
+                red_x, red_y = [], []
+
+            if blue_troops:
+                blue_x = [troop.x for troop in blue_troops]
+                blue_y = [troop.y for troop in blue_troops]
+            else:
+                blue_x, blue_y = [], []
+
+        plt.figure(figsize=(6, 6))
+        plt.title("Battlefield Troop Positions")
+        # plt.xlim(0, 1)
+        # plt.ylim(0, 1)
+
+        if red_x and red_y:  # Ensure there are coordinates to plot
+            plt.scatter(red_x, red_y, color="red", label="Red")
+
+        if blue_x and blue_y:
+            plt.scatter(blue_x, blue_y, color="blue", label="Blue")
+
+        plt.xlabel("X Position")
+        plt.ylabel("Y Position")
+        plt.legend(loc="upper right")
+        plt.grid(True)
+        plt.show()
 
 
 class BattleBusPair:

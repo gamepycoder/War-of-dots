@@ -10,3 +10,6 @@ class BattleBusTest(unittest.TestCase):
         bf = Battlefield()
         bbus = BattleBusPair()
         bbus.distribute(bf)
+
+        bf.frame()
+        bf.display()
