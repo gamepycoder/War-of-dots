@@ -35,7 +35,8 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import Column, Float, Integer, create_engine
+from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session, sessionmaker
 
 
@@ -51,6 +52,19 @@ class BFTroop:
     x: float = 0.0
     y: float = 0.0
     health: int = 100
+
+
+Base = declarative_base()
+
+
+class BFTroopRow(Base):  # type: ignore
+    __tablename__ = "bftroop"
+
+    serial = Column(Integer, primary_key=True)
+    player = Column(Integer)
+    x = Column(Float)
+    y = Column(Float)
+    health = Column(Integer)
 
 
 class Battlefield:
@@ -72,17 +86,11 @@ class Battlefield:
         return sessionmaker(bind=self.engine)()
 
     def _create_tables(self) -> None:
+
+        Base.metadata.create_all(self.engine)
+
         with self.get_session() as sess:
-            sess.execute(text("""
-                CREATE TABLE  IF NOT EXISTS  bftroop (
-                    serial INTEGER PRIMARY KEY,
-                    player INTEGER,
-                    x REAL,
-                    y REAL,
-                    health INTEGER
-                )
-            """))
-            sess.execute(text("DELETE FROM bftroop"))
+            sess.query(BFTroopRow).delete()
             sess.commit()
 
 
@@ -101,37 +109,42 @@ class BattleBusPair:
         self.troops: list[BFTroop] = []
         for _ in range(num_troops):
             self.troops.append(BFTroop(serial, BFPlayer.BLUE, x_blue, 0.0))
+            serial += 1
             self.troops.append(BFTroop(serial, BFPlayer.RED, x_red, 0.0))
             serial += 1
+
+    def _pop(self, player_color: BFPlayer) -> BFTroop:
+        troop = self.troops.pop()
+        assert troop.player == player_color
+        return troop
+
+    def _insert(self, troop: BFTroop, session: Session) -> None:
+        session.add(
+            BFTroopRow(
+                serial=troop.serial,
+                player=troop.player.value,
+                x=round(troop.x, 6),
+                y=round(troop.y, 66),
+                health=troop.health,
+            )
+        )
 
     def distribute(self, bf: Battlefield) -> None:
         """
         Fly over the battlefield, dropping troops as we go.
         """
-        y_base = 0.1
+        y_base = 0.1  # This always reflects the Red bus current location.
         num_troops = len(self.troops) // 2
         dy = (0.9 - y_base) / num_troops
         with bf.get_session() as sess:
-            for i in range(num_troops):
-                y_red = y_base + i * dy
-                # y_blue = 1 - y_red
+            while self.troops:
+                y_base += dy  # Fly north one increment.
+                troop = self._pop(BFPlayer.RED)
+                troop.y = y_base
+                self._insert(troop, sess)
 
-                troop = self.troops.pop()
-                assert troop.player == BFPlayer.RED
-                troop.y = y_red
-                ins = """
-                INSERT INTO bftroop (serial, player, x, y, health)
-                VALUES (:serial, :player, :x, :y, :health)
-                """
-                sess.execute(
-                    text(ins),
-                    {
-                        "serial": troop.serial,
-                        "player": troop.player.value,
-                        "x": troop.x,
-                        "y": troop.y,
-                        "health": troop.health,
-                    },
-                )
-                sess.commit()
-                print(troop)
+                troop = self._pop(BFPlayer.BLUE)
+                troop.y = 1 - y_base  # The Blue bus is flying south.
+                self._insert(troop, sess)
+
+            sess.commit()
