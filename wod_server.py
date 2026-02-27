@@ -3,9 +3,10 @@
 import json
 import math
 import random
-import socket
 import threading
 import time
+from socket import gethostbyname, gethostname, socket
+from typing import Any
 
 import perlin_noise
 import typer
@@ -25,14 +26,14 @@ from constants import (
 )
 
 
-def dir_dis_to_xy(direction, distance):
+def dir_dis_to_xy(direction: float, distance: float) -> tuple[float, float]:
     return (
         (distance * math.cos(math.radians(direction))),
         (distance * math.sin(math.radians(direction))),
     )
 
 
-def xy_to_dir_dis(xy):
+def xy_to_dir_dis(xy: tuple[float, float]) -> tuple[float, float]:
     x, y = xy
     return (
         math.degrees(math.atan2(y, x)),
@@ -41,10 +42,10 @@ def xy_to_dir_dis(xy):
 
 
 class MarchingSquares:
-    def __init__(self):
+    def __init__(self) -> None:
         self.grid = [[0.0 for _ in range(COLS + 1)] for _ in range(ROWS + 1)]
 
-    def set_grid(self, new_grid):
+    def set_grid(self, new_grid: list[list[float]]) -> None:
         self.grid = new_grid
 
     def get_grid_value(self, x: float, y: float) -> float:
@@ -69,12 +70,14 @@ class MarchingSquares:
 
 
 class Brush:
-    def __init__(self, radius=40, strength=1.0, falloff=1.0):
+    def __init__(self, radius: float = 40, strength: float = 1.0, falloff: float = 1.0) -> None:
         self.radius = radius
         self.strength = strength
         self.falloff = falloff
 
-    def apply(self, marching_squares, pos, target_value):
+    def apply(
+        self, marching_squares: MarchingSquares, pos: tuple[float, float], target_value: float
+    ) -> None:
         mx, my = pos
         cs = CELL_SIZE
         r = float(self.radius)
@@ -112,7 +115,7 @@ class Brush:
 
 
 class Environment:
-    def __init__(self):
+    def __init__(self) -> None:
         self.terrain_speeds = {
             "water": 0.6,
             "forest": 0.8,
@@ -130,7 +133,7 @@ class Environment:
         self.terrain_marching = MarchingSquares()
         self.forest_marching = MarchingSquares()
 
-        self.cities = []
+        self.cities: list[City] = []
 
         self.default_vision = [[0.0 for _ in range(COLS + 1)] for _ in range(ROWS + 1)]
         for y in range(COLS + 1):
@@ -223,10 +226,10 @@ class Environment:
         self.city_vision_brush = Brush(175, 1, 0)
         self.border_brush = Brush(40, 0.05, 0)
         self.city_border_brush = Brush(80, 0.05, 0)
-        self.players_in_cities = [[] for _ in self.cities]
+        self.players_in_cities: list[list[Player]] = [[] for _ in self.cities]
 
-    def generate_terrain(self):
-        def elevation_bias(x, y):
+    def generate_terrain(self) -> None:
+        def elevation_bias(x: float, y: float) -> float:
             cx = ROWS / 2
             cy = COLS / 2
             dx = abs(x - cx)
@@ -253,8 +256,8 @@ class Environment:
 
                 self.forest_marching.grid[x][y] = (value - (plains_diff * 10)) - hill_diff * 10
 
-        def within_edges(cx, cy):
-            edge_margin = int(1)
+        def within_edges(cx: int, cy: int) -> bool:
+            edge_margin = 1
             return (
                 cx >= edge_margin
                 and cx <= ROWS - edge_margin
@@ -293,7 +296,7 @@ class Environment:
                 distance = max(2, distance - 2)
                 tries = 0
 
-    def generate_default_vision(self):
+    def generate_default_vision(self) -> None:
         for y in range(COLS + 1):
             for x in range(ROWS + 1):
                 terrain_value = self.terrain_marching.grid[x][y]
@@ -303,8 +306,13 @@ class Environment:
                     + (0.8 if forest_value > 0.6 else 0.0)
                 )
 
-    def draw_info(self, player):
-        ply = self.players[player]
+    def draw_info(self, player_num: int) -> tuple[
+        list[list[float]],
+        list[list[float]],
+        list[Any],
+        list[Any],
+    ]:
+        ply = self.players[player_num]
         vision_grid = ply.vision.grid
         border_grid = ply.border.grid
         troops = []
@@ -319,7 +327,7 @@ class Environment:
             for c in self.cities
         ]
         for troop in [t for p in self.players for t in p.troops]:
-            ply = self.players[player]
+            ply = self.players[player_num]
 
             vision = ply.vision
             px, py = troop.position
@@ -342,7 +350,13 @@ class Environment:
 
         return vision_grid, border_grid, troops, cities
 
-    def get_terrain_info(self):
+    def get_terrain_info(
+        self,
+    ) -> tuple[
+        list[list[float]],
+        list[list[float]],
+        list[tuple[float, float]],
+    ]:
         return (
             self.terrain_marching.grid,
             self.forest_marching.grid,
@@ -350,13 +364,15 @@ class Environment:
         )
 
     def get_terrain_name(self, value: float, fvalue: float) -> str:
+        name = "forest"
         if fvalue > THRESHOLD:
-            return "forest"
-        for name, v in reversed(TERRAIN_VALUES.items()):
+            return name
+        for k, v in reversed(TERRAIN_VALUES.items()):
             if value > v:
-                return name
+                name = k
+        return name
 
-    def update_troops(self, paths_to_apply):  # split into more functions ?
+    def update_troops(self, paths_to_apply: list[tuple[Any, Any]]) -> None:
         self.players_in_cities = [[] for _ in self.cities]
         troop_ids = [info[0] for info in paths_to_apply]
         troop_paths = [info[1] for info in paths_to_apply]
@@ -412,12 +428,12 @@ class Environment:
                                     )
                                     / len(sample_points)
                                 )
-                        border_avg = sum(border_avgs) / len(border_avgs)
+                        border_avg = int(sum(border_avgs) / len(border_avgs))
                     dist_penal = max(((city_dist + 250) / 1000), 0.5)
                     healing_power = (1 - (border_avg / 2)) - dist_penal
                 else:
                     healing_power = -0.5
-                troop.health += healing_power / 25
+                troop.health += int(healing_power / 25)
                 if troop.health > 100:
                     troop.health = 100
 
@@ -559,7 +575,7 @@ class Environment:
                         on_terrain = new_terrain
 
                 if enemies_in_range:
-                    attack_power = self.terrain_attacks[on_terrain] / 25
+                    attack_power = int(self.terrain_attacks[on_terrain] / 25)
                     closest = min(enemies_in_range, key=lambda x: x[1])
                     closest[0].health -= attack_power
 
@@ -579,7 +595,7 @@ class Environment:
             for t in to_remove:
                 player.troops.remove(t)
 
-    def update_cities(self, paths_to_apply):
+    def update_cities(self, paths_to_apply: list[tuple[Any, Any]]) -> None:
         city_ids = [info[0] for info in paths_to_apply]
         city_paths = [info[1] for info in paths_to_apply]
         for i, city in enumerate(self.cities):
@@ -614,26 +630,23 @@ class Environment:
                     city.timer = 0
 
 
-class Troop:
-    def __init__(self, position, owner, path=None):
-        self.position = position
-        self.health = 100
-        self.path = path if path is not None else []
-        self.owner = owner
-        self.id = id(self)
-
-
 class City:
-    def __init__(self, position):
+    def __init__(self, position: tuple[float, float]) -> None:
         self.position = position
         self.timer = 0
-        self.owner = None
+        self.owner: Player | None = None
         self.id = id(self)
-        self.path = []
+        self.path: list[Any] = []
 
 
 class Player:
-    def __init__(self, start_pos, color, environment):
+    def __init__(
+        self,
+        start_pos: tuple[float, float],
+        color: tuple[int, int, int],
+        environment: Environment,
+    ) -> None:
+
         self.start_pos = start_pos
         self.color = color
         self.troops = [Troop(self.start_pos, self)]
@@ -642,27 +655,41 @@ class Player:
         self.vision.grid = [row[:] for row in environment.default_vision]
 
 
+class Troop:
+    def __init__(
+        self,
+        position: tuple[float, float],
+        owner: Player,
+        path: list[Any] | None = None,
+    ) -> None:
+        self.position = position
+        self.health = 100
+        self.path = path if path is not None else []
+        self.owner = owner
+        self.id = id(self)
+
+
 class Game:
-    def __init__(self):
+    def __init__(self) -> None:
         self.FPS = 45
         self.last_time = time.perf_counter()
         self.frame_time = 1 / self.FPS
         self.done = False
-        self.server = simple_socket.Server(socket.gethostbyname(str(socket.gethostname())), 1200)
+        self.server = simple_socket.Server(gethostbyname(str(gethostname())), 1200)
         self.environment = Environment()
-        self.player_inputs = [[] for i in range(PLAYERS)]
-        self.player_city_inputs = [[] for i in range(PLAYERS)]
+        self.player_inputs: list[list[Any]] = [[] for i in range(PLAYERS)]
+        self.player_city_inputs: list[list[Any]] = [[] for i in range(PLAYERS)]
         self.player_pause_requests = [False for i in range(PLAYERS)]
         self.started = False
 
-    def run_game(self, port: int = 0):
+    def run_game(self, port: int = 0) -> None:
         self.ready = True
         self.server.port = PORTS[port]
         print("ip: ", self.server.ip, ", port: ", self.server.port)
         print("starting server...")
         self.server.start()
         print("waiting for players...")
-        self.server.lsn(conns=PLAYERS)
+        self.server.lsn(num_conns=PLAYERS)
         for player_num in range(PLAYERS):
             conn, addr = self.server.accept()
             player_thread = threading.Thread(
@@ -684,7 +711,7 @@ class Game:
             #     self.dots = len(self.environment.players[0].troops)
             #     print(self.dots)
 
-    def handle_player(self, player_number, conn, addr):
+    def handle_player(self, player_number: int, conn: socket, addr: str) -> None:
         self.server.send(
             [conn],
             json.dumps(
@@ -721,7 +748,7 @@ class Game:
                     self.player_inputs[player_number].extend(player_in[0])
                     self.player_city_inputs[player_number].extend(player_in[1])
 
-    def game_logic(self):
+    def game_logic(self) -> None:
         city_paths_to_apply = []
         for p_num in range(PLAYERS):
             if self.player_city_inputs[p_num]:

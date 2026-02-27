@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
 import json
+from typing import Any
 
 import pygame
 import typer
@@ -202,8 +203,8 @@ class Game:
         self.pan_start_mouse = (0, 0)
         self.pan_start_cam = (0.0, 0.0)
 
-        self.draw_info = None
-        self.player_input = [[], []]
+        self.draw_info: list[Any] = []
+        self.player_input: str | list[list[int]] = [[], []]  # There is room to improve this.
         self.paths = []
         self.drawing_path = False
         self.city_paths = []
@@ -410,6 +411,7 @@ class Game:
                                 path.pop(0)
                             for id, path in self.city_paths:
                                 path.pop(0)
+                            assert isinstance(self.player_input, list)
                             self.player_input[0] = self.paths
                             self.player_input[1] = self.city_paths
                             self.paths = []
